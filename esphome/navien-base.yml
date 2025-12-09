@@ -21,7 +21,9 @@ esphome:
 
 ${platform}: 
   board: ${board}
-
+  framework:
+    type: esp-idf
+    
 external_components:
   - source: ${external_component_source}
 #      type: local
