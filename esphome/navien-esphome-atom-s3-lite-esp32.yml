@@ -94,7 +94,7 @@ wifi:
           id: led
           range_from: 1
           range_to: 1
-          red: 1000%
+          red: 100%
           green: 0%
           blue: 0%
       
