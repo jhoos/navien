@@ -46,14 +46,14 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       - lambda: |-
-          ESP_LOGI("binary_sensor.atom_s3_lite_button", "Pressed")
+          ESP_LOGI("binary_sensor.atom_s3_lite_button", "Pressed");
 
 esphome:
   on_boot:
     - priority: 600
       then:
         - lambda: |-
-            ESP_LOGI("esphome.on_boot", "priority 600")
+            ESP_LOGI("esphome.on_boot", "priority 600");
         - light.addressable_set:
             id: led
             range_from: 0
@@ -64,7 +64,7 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
-            ESP_LOGI("esphome.on_boot", "priority -100")
+            ESP_LOGI("esphome.on_boot", "priority -100");
         - light.addressable_set:
             id: led
             range_from: 0
@@ -76,7 +76,7 @@ esphome:
     - priority: 600
       then:
         - lambda: |-
-            ESP_LOGI("esphome.on_shutdown", "priority 600")
+            ESP_LOGI("esphome.on_shutdown", "priority 600");
         - light.addressable_set:
             id: led
             range_from: 0
