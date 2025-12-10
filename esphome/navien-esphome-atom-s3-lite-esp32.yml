@@ -31,13 +31,6 @@ light:
     rgb_order: GRB
     id: led
     name: "Indicator Light"
-    initial_state:
-      state: on
-      color_mode: RGB
-      brightness: 50%
-      red: 0%
-      green: 100%
-      blue: 0%
 
 binary_sensor:
   - platform: gpio
@@ -53,4 +46,43 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       - logger.log: "Button on atom s3 lite was pressed"
-      
+
+esphome:
+  on_boot:
+    - priority: 600
+      then:
+        - light.addressable_set:
+            id: led
+            range_from: 1
+            range_to: 1
+            red: 1000%
+            green: 100%
+            blue: 0%
+    - priority: -100
+      then:
+        - light.addressable_set:
+            id: led
+            range_from: 1
+            range_to: 1
+            red: 0%
+            green: 100%
+            blue: 0%
+
+wifi:
+  on_connect:
+    - light.addressable_set:
+        id: led
+        range_from: 1
+        range_to: 1
+        red: 0%
+        green: 100%
+        blue: 0%
+  on_disconnect:
+    - light.addressable_set:
+        id: led
+        range_from: 1
+        range_to: 1
+        red: 1000%
+        green: 0%
+        blue: 0%
+    
