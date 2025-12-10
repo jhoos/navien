@@ -14,16 +14,22 @@ dashboard_import:
   package_import_url: github://htumanyan/navien/esphome/navien-esphome-atom-lite-esp32.yml
   import_full_config: false
 
+logger:
+  # baud_rate: 0 is REQUIRED for ESP32-S3 (it uses USB-CDC, not traditional UART)
+  baud_rate: 0
+  level: INFO
+  
 button:
   - platform: navien
     name: NavienHotButton
     
 light:
   - platform: esp32_rmt_led_strip
-    chipset: SK6812
+    chipset: WS2812B
     pin: GPIO35
-    num_leds: 1
+    num_leds: 4
     rgb_order: GRB
+    id: led
     name: "Indicator Light"
     initial_state:
       state: on
@@ -32,3 +38,19 @@ light:
       red: 0%
       green: 100%
       blue: 0%
+
+binary_sensor:
+  - platform: gpio
+    id: atom_s3_lite_button
+    name: "Button on Atom S3 Lite"
+    pin:
+      number: GPIO41
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_off: 10ms
+    on_press:
+      - logger.log: "Button on atom s3 lite was pressed"
+      
