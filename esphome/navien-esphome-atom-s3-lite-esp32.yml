@@ -28,4 +28,11 @@ light:
     pin: GPIO35
     num_leds: 1
     rgb_order: GRB
-    name: "FastLED Light"
+    name: "Indicator Light"
+    initial_state:
+      state: on
+      color_mode: RGB
+      brightness: 50
+      red: 0
+      green: 100
+      blue: 0
