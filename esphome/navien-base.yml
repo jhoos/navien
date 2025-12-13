@@ -131,7 +131,21 @@ binary_sensor:
 switch:
   - platform: navien
     name: ${friendly_name} Power On/Off
-
+  - platform: template
+    name: "Packet logging"
+    lambda: |-
+      return esp_log_level_get("navien.link") >= ESP_LOG_INFO;
+    turn_on_action:
+      - lambda: |-
+          ESP_LOGW("navien.link", "Before: level=%d", esp_log_level_get("navien.link"));
+          esp_log_level_set("navien.link", ESP_LOG_INFO);
+          ESP_LOGW("navien.link", "After: level=%d (INFO=%d)", esp_log_level_get("navien.link"), ESP_LOG_INFO);
+          ESP_LOGI("navien.link", "test info", esp_log_level_get("navien.link"), ESP_LOG_INFO);
+    turn_off_action:
+      - lambda: |-
+          ESP_LOGW("navien.link", "Before: level=%d", esp_log_level_get("navien.link"));
+          esp_log_level_set("navien.link", ESP_LOG_WARN);
+          ESP_LOGW("navien.link", "After: level=%d (WARN=%d)", esp_log_level_get("navien.link"), ESP_LOG_WARN);
 button:
   - platform: restart
     name: "Restart"

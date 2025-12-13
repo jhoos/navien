@@ -137,8 +137,9 @@ void NavienLink::receive() {
 	//Navilink keeps sending this sequence every time it receives a packet
 	//this->send_cmd(NAVILINK_PRESENT, sizeof(NAVILINK_PRESENT));
       }
-       
-      //Navien::print_buffer(this->recv_buffer.raw_data, len+HDR_SIZE);
+
+      ESP_LOGI(TAG, "About to print packet buffer, len=%d", len+HDR_SIZE);
+      NavienLink::print_buffer(this->recv_buffer.raw_data, len+HDR_SIZE);
       this->parse_packet();
       available = this->uart.available();
       this->recv_state = INITIAL;
@@ -224,7 +225,9 @@ uint8_t NavienLink::t2f(uint8_t c){
 
   
 void NavienLink::print_buffer(const uint8_t *data, size_t length) {
-   char hex_buffer[100];
+   //if (esp_log_level_get(TAG) < ESP_LOG_INFO) { return; }
+
+   static char hex_buffer[100];
    hex_buffer[(3 * 32) + 1] = 0;
    for (size_t i = 0; i < length; i++) {
      snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
