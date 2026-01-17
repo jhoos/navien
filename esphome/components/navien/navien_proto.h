@@ -120,6 +120,24 @@ const uint8_t SYS_STATUS_2_DISPLAY_UNITS = 0x01;
 const uint8_t SYS_STATUS_2_HOTBUTTON_ENABLED = 0x04;
 
 /**
+ * Structure representing a response to a command that shows the command was actioned and 
+ * we can stop sending it
+ */
+typedef struct _NAVIEN_CMD_RESPONSE{
+  // Type of packet to expect in response to a command
+  uint8_t   dst;
+  // Byte within the response to look at
+  size_t    idx;
+  // Mask to apply to that byte
+  uint8_t   mask;
+  // Value to expect after applying the mask
+  uint8_t   expected_value;
+  _NAVIEN_CMD_RESPONSE(uint8_t dst, size_t idx, uint8_t mask, uint8_t expected_value):
+    dst(dst), idx(idx), mask(mask), expected_value(expected_value)
+  {}
+} NAVIEN_CMD_RESPONSE;
+
+/**
  * Hardcoded command packets. Some commands have no uses data. Therefore rather than assemblying a packet
  * we just pre-compute/hardcode and just send the static const buffer when need to send the command.
  *
@@ -128,10 +146,11 @@ const uint8_t SYS_STATUS_2_HOTBUTTON_ENABLED = 0x04;
  */
 const uint8_t TURN_OFF_CMD[]   =        {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x0b,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A};
 const uint8_t TURN_ON_CMD[]    =        {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x0a,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xCE};
-
+const NAVIEN_CMD_RESPONSE TURN_OFF_CMD_RESPONSE = NAVIEN_CMD_RESPONSE(PACKET_DST_WATER, 9, POWER_STATUS_ON_OFF_MASK, 0x00);
+const NAVIEN_CMD_RESPONSE TURN_ON_CMD_RESPONSE =  NAVIEN_CMD_RESPONSE(PACKET_DST_WATER, 9, POWER_STATUS_ON_OFF_MASK, POWER_STATUS_ON_OFF_MASK);
 
 const uint8_t HOT_BUTTON_PRESS_CMD[] =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6A};
-const uint8_t HOT_BUTTON_RELSE_CMD[] =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A};
+const NAVIEN_CMD_RESPONSE HOT_BUTTON_PRESS_CMD_RESPONSE = NAVIEN_CMD_RESPONSE(PACKET_DST_WATER, 33, RECIRC_STATUS_FLAG_HOTBUTTON_ON, RECIRC_STATUS_FLAG_HOTBUTTON_ON);
 
 const uint8_t RECIRC_ON_CMD[]        =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x08, 0xD9, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD0};
 //  F7,05,0F,50,10,0C,4F,00,00,00,00,08,D9,00,00,00,00,00,D0
@@ -146,11 +165,23 @@ const uint8_t RECIRC_ON_CMD[]        =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 
 const uint8_t SCHEDULED_RECIRC_ON_CMD[]  =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEE};
 // When in scheduled recirculation mode, this turns off recirculation. NaviLink sends this either when you enable a schedule, or when the scheduled time block ends.
 const uint8_t SCHEDULED_RECIRC_OFF_CMD[] =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0};
+const NAVIEN_CMD_RESPONSE SCHEDULED_RECIRC_ON_CMD_RESPONSE  = NAVIEN_CMD_RESPONSE(PACKET_DST_WATER, 33, RECIRC_STATUS_FLAG_SCHEDULED_ON, RECIRC_STATUS_FLAG_SCHEDULED_ON);
+const NAVIEN_CMD_RESPONSE SCHEDULED_RECIRC_OFF_CMD_RESPONSE = NAVIEN_CMD_RESPONSE(PACKET_DST_WATER, 33, RECIRC_STATUS_FLAG_SCHEDULED_ON, 0x00);
 
 //                                                                                                               temp
 const uint8_t DHW_SET_TEMP_CMD_TEMPLATE[] =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
                                             //F7              05    0F    50    10    0C    4F    00      00       5E    00    00    00    00    00    00    00    00  84
+struct DHW_SET_TEMP_CMD_RESPONSE : NAVIEN_CMD_RESPONSE {
+  DHW_SET_TEMP_CMD_RESPONSE(uint8_t temp): NAVIEN_CMD_RESPONSE(PACKET_DST_GAS, 14, 0xFF, temp) {}
+};
 
+// This is sent after we see a status packet that shows that the command we sent has been actioned.
+// It doesn't seem to be strictly necessary since the unit did whatever we asked anyway, but the NaviLink 
+// does this, so maybe some units need it for some reason.
+const uint8_t ACKNOWLEDGEMENT[] =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x0c, 0x4f, 0x00,   0x00,   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A};
+const NAVIEN_CMD_RESPONSE ACKNOWLEDGEMENT_RESPONSE = NAVIEN_CMD_RESPONSE(0, 0, 0, 0); // no response expected
+
+// This is sent when there's no command pending, to tell the unit that we're here and active
 const uint8_t NAVILINK_PRESENT[]     =  {PACKET_MARKER, 0x05, 0x0F, 0x50, 0x10, 0x03, 0x4a, 0x00, 0x01, 0x55};
 
 typedef struct {

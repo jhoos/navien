@@ -7,8 +7,8 @@
 
 
 #include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
-#ifdef USE_SWITCH
+#include "esph_components/sensor/sensor.h"
+#include "circular_buffer.h"
 #include "esphome/components/switch/switch.h"
 #endif
 #include "esphome/components/uart/uart.h"
@@ -39,10 +39,15 @@ typedef union{
 typedef struct _NAVIEN_CMD{
   uint8_t   buffer[64];
   uint8_t   len;
-  _NAVIEN_CMD(const uint8_t * b, uint8_t l) {
+  NAVIEN_CMD_RESPONSE response;
+  uint8_t   tries;
+  _NAVIEN_CMD(const uint8_t * b, uint8_t l, NAVIEN_CMD_RESPONSE response, uint8_t tries = 10):
+    response(response), tries(tries)
+  {
     len = std::min(l, static_cast<uint8_t>(sizeof(buffer)));
     memcpy(buffer, b, len);
   }
+  bool matches_packet(const RECV_BUFFER & recv_buffer, uint8_t recv_len) const;
 } NAVIEN_CMD;
 
 
@@ -179,15 +184,21 @@ protected:
   // Called when we receive a status packet from Navien device 
   void parse_status_packet();
 
+  // Called to check if a received status packet confirms a command has succeeded
+  void check_command_complete();
+
+  // Called to send a queued command
+  void send_queued_command();
+  
 protected:
   /**
    * Send command to Navien unit.
    *
-   * @param buffer - command to be sent.
+   * @param buffer - command to be sent
    * @param len - the length of buffer
-   * @param tries - number of times to send the command
+   * @param response - packet to wait for to check that command was actioned
    */
-  void send_cmd(const uint8_t * buffer, uint8_t len, uint8_t tries = 2);
+  void send_cmd(const uint8_t * buffer, uint8_t len, const NAVIEN_CMD_RESPONSE & response);
   void on_error();
   
 protected:
@@ -211,7 +222,7 @@ protected:
 
   // Buffer for queued commands.
   // TODO: add thread safety - cmd_buffer is used in different thread contexts
-  std::list<NAVIEN_CMD> cmd_buffer;
+  CircularBuffer<NAVIEN_CMD, 10> cmd_buffer;
 };
 
   
