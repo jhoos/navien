@@ -160,7 +160,7 @@ void NavienLink::parse_packet(){
   uint8_t crc_c = 0x00;
   uint8_t crc_r = 0x00;
 
-  //NavienLink::print_buffer(this->recv_buffer.raw_data, HDR_SIZE + this->recv_buffer.hdr.len + 1);
+  NavienLink::print_buffer(this->recv_buffer.raw_data, HDR_SIZE + this->recv_buffer.hdr.len + 1);
   crc_r = this->recv_buffer.raw_data[HDR_SIZE + this->recv_buffer.hdr.len];
   
   switch(this->recv_buffer.hdr.direction){
@@ -174,7 +174,6 @@ void NavienLink::parse_packet(){
     crc_c = NavienLink::checksum(this->recv_buffer.raw_data, HDR_SIZE + this->recv_buffer.hdr.len, seed);
     if (crc_c != crc_r){
       ESP_LOGE(TAG, "SRC:0x%02X Status Packet checksum error: 0x%02X (calc) != 0x%02X (recv), seed=0x%02X", this->recv_buffer.hdr.src, crc_c, crc_r, seed);
-      NavienLink::print_buffer(this->recv_buffer.raw_data, HDR_SIZE + this->recv_buffer.hdr.len + 1);
       break;
     }
     parse_status_packet();
@@ -194,7 +193,6 @@ void NavienLink::parse_packet(){
     if (crc_c != crc_r){
       ESP_LOGE(TAG, "SRC:0x%02X Control Packet checksum error: 0x%02X (calc) != 0x%02X (recv), seed=0x%02X", this->recv_buffer.hdr.src, crc_c, crc_r, CHECKSUM_SEED_62);
       this->on_error();
-      NavienLink::print_buffer(this->recv_buffer.raw_data, HDR_SIZE + this->recv_buffer.hdr.len + 1);
       break;
     }
     parse_control_packet();
@@ -378,25 +376,23 @@ uint8_t NavienLink::t2f(uint8_t c){
   return (uint8_t)round(f);
 }
 
-  
-void NavienLink::print_buffer(const uint8_t *data, size_t length) {
-   char hex_buffer[100];
-   hex_buffer[(3 * 32) + 1] = 0;
-   for (size_t i = 0; i < length; i++) {
-     size_t offset = 3 * (i % 32);
-     snprintf(&hex_buffer[offset], sizeof(hex_buffer) - offset, "%02X ", data[i]);
-     if (i % 32 == 31) {
-       ESP_LOGI(TAG, "   %s", hex_buffer);
-     }
-   }
-   if (length % 32) {
-     // null terminate if incomplete line
-     hex_buffer[3 * (length % 32) + 2] = 0;
-     ESP_LOGI(TAG, "   %s", hex_buffer);
-   }
- }
+static const char* PACKET_TAG = "navien.link.packet";
 
-  
+void NavienLink::print_buffer(const uint8_t *data, size_t length) {
+  static const size_t MAX_PACKET_LENGTH = std::max(sizeof(WATER_DATA), sizeof(GAS_DATA)) + HDR_SIZE;
+  static char hex_buffer[MAX_PACKET_LENGTH * 3 + 1];
+  static const char* HEX = "0123456789abcdef";
+
+  const size_t logged_length = std::min(length, MAX_PACKET_LENGTH);
+  for (size_t i = 0; i < logged_length; i++) {
+    hex_buffer[3*i]     = HEX[(data[i] >> 4) & 0x0F];
+    hex_buffer[3*i + 1] = HEX[data[i] & 0x0F];
+    hex_buffer[3*i + 2] = ' ';
+  }
+  hex_buffer[(3 * logged_length)] = 0;
+  ESP_LOGI(PACKET_TAG, "Packet dump, len=%d\t%s", length, hex_buffer);
+}
+ 
 uint8_t NavienLink::checksum(const uint8_t * buffer, uint8_t len, uint16_t seed){  
   uint16_t result;
 
