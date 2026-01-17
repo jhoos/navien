@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cinttypes>
-#include <list>
+#include <queue>
 
 #include "esphome/core/helpers.h"
 
@@ -26,25 +26,15 @@ typedef enum{
 } READ_STATE;
 
 typedef union{
-    struct{
-      HEADER  hdr;
-      union{
-	GAS_DATA   gas;
-	WATER_DATA water;
-      };
+  struct{
+    HEADER  hdr;
+    union{
+    	GAS_DATA   gas;
+	    WATER_DATA water;
     };
-    uint8_t    raw_data[128];
+  };
+  uint8_t    raw_data[128];
 } RECV_BUFFER;
-  
-typedef struct _NAVIEN_CMD{
-  uint8_t   buffer[64];
-  uint8_t   len;
-  _NAVIEN_CMD(const uint8_t * b, uint8_t l) {
-    len = std::min(l, static_cast<uint8_t>(sizeof(buffer)));
-    memcpy(buffer, b, len);
-  }
-} NAVIEN_CMD;
-
 
  /**
   * UART connectivity interface that abstracts away the details of UART implementation
@@ -57,6 +47,70 @@ public:
   virtual uint8_t read_byte(uint8_t * byte) = 0;
   virtual bool read_array(uint8_t * data, uint8_t len) = 0;
   virtual void write_array(const uint8_t * data, uint8_t len) = 0; 
+};
+
+/**
+ * Base class for commands sent to the Navien unit. Each command carries its packet data,
+ * an Expectation describing what status packet confirms the command took effect, and a
+ * retry count. Subclasses pair specific packet data with their expectations.
+ */
+class NavienCommand {
+protected:
+  // Holds the command being sent
+  uint8_t  buffer[MAX_CMD_PACKET_LEN];
+  uint8_t  len;
+  // Number of times to send this command before giving up on waiting for its change to be observed
+  uint8_t  tries;
+  /**
+   * Describes what to look for in a status packet to confirm that a command has taken effect.
+   * Each expectation specifies a packet type (dst), a byte offset within the data struct
+   * (e.g. offsetof(WATER_DATA, field)), a bitmask, and the expected value after masking.
+   * A dst of 0 means no expectation (matches anything), and is used for acknowledgements
+   * since they are fire-and-forget.
+   */
+  uint8_t   dst;
+  size_t    idx;
+  uint8_t   mask;
+  uint8_t   expected;
+
+public:
+  NavienCommand(const uint8_t *cmd, uint8_t len, uint8_t dst, size_t idx, uint8_t mask, uint8_t expected, uint8_t tries = 10):
+    len(len), dst(dst), idx(HDR_SIZE + idx), mask(mask), expected(expected), tries(tries)
+  {
+    ESP_LOGI("NavienCmd", "constructed");
+    memcpy(buffer, cmd, len);
+  }
+
+  NavienCommand(NavienCommand const& o):
+    len(o.len), dst(o.dst), idx(o.idx), mask(o.mask), expected(o.expected), tries(o.tries)
+  {
+    ESP_LOGI("NavienCmd", "copy constructed");
+    memcpy(buffer, o.buffer, len);
+  }
+
+  NavienCommand(NavienCommand&& o):
+    len(o.len), dst(o.dst), idx(o.idx), mask(o.mask), expected(o.expected), tries(o.tries)
+  {
+    ESP_LOGI("NavienCmd", "moved");
+    memcpy(buffer, o.buffer, len);
+  }
+
+  NavienCommand& operator=(NavienCommand const& o) {
+    len = o.len ; dst = o.dst; idx = o.idx; mask = o.mask; expected = o.expected; tries = o.tries;
+    ESP_LOGI("NavienCmd", "assigned");
+    memcpy(buffer, o.buffer, len);
+    return *this;
+  }
+
+  // Sends the command over the given interface, decrements the try counter, and returns 
+  // the number of tries left.
+  uint8_t send(NavienUartI* uart);
+  
+  // Returns true if the given status packet reflects the change this command requested
+  bool change_observed(const RECV_BUFFER& recv_buffer, uint8_t recv_len) const;  
+  
+  // Returns true if this command was an acknowledgement
+  bool is_ack() const { return dst == 0; }
 };
 
 /**
@@ -148,7 +202,6 @@ public:
   static float flow2lpm(uint8_t f);
   static float ot2c(uint8_t);
 
-protected:
   /**
    * Calculate the packet checksum
    * @param buffer - the input buffer for the checksum to be calculated on
@@ -179,15 +232,20 @@ protected:
   // Called when we receive a status packet from Navien device 
   void parse_status_packet();
 
+  // Called to check if a received status packet confirms a command has succeeded
+  void check_command_complete();
+
+  // Called to send a queued command
+  void send_queued_command();
+  
 protected:
   /**
    * Send command to Navien unit.
    *
-   * @param buffer - command to be sent.
-   * @param len - the length of buffer
-   * @param tries - number of times to send the command
+   * @param cmd - command to be sent
    */
-  void send_cmd(const uint8_t * buffer, uint8_t len, uint8_t tries = 2);
+  template<class... Args>
+  inline void send_cmd(const NavienCommand& cmd) { this->cmd_buffer.push(cmd); }
   void on_error();
   
 protected:
@@ -209,11 +267,9 @@ protected:
   // Flag indicating if we've seen control packets that we didn't send, which means an actual NaviLink is also present
   bool other_navilink_installed = false;
 
-  // Buffer for queued commands.
-  // TODO: add thread safety - cmd_buffer is used in different thread contexts
-  std::list<NAVIEN_CMD> cmd_buffer;
+  // Buffer for queued commands
+  std::queue<NavienCommand> cmd_buffer;
 };
 
-  
 }  // namespace navien
 }  // namespace esphome
