@@ -61,6 +61,19 @@ switch:
     type: allow_scheduled_recirc
     name: "${friendly_name} Allow Recirculation"
     id: allow_scheduled_recirc
+  - platform: template
+    name: "${friendly_name} Packet Logging"
+    optimistic: true
+    turn_on_action:
+      - logger.set_level:
+          level: INFO
+          tag: navien.link.packet
+      - lambda: ESP_LOGW("navien.link.packet", "Packet logging enabled");
+    turn_off_action:
+      - logger.set_level:
+          level: WARN
+          tag: navien.link.packet
+      - lambda: ESP_LOGW("navien.link.packet", "Packet logging disabled");
 
 button:
   - platform: restart
@@ -103,6 +116,8 @@ uart:
 
 logger:
   level: INFO
+  logs:
+    navien.link.packet: WARN
 
 
 
