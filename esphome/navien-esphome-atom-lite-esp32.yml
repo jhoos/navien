@@ -33,5 +33,5 @@ light:
     chipset: SK6812
     pin: 27
     num_leds: 1
-    rgb_order: GRB
+    channel_colors: GRB
     name: "FastLED Light"

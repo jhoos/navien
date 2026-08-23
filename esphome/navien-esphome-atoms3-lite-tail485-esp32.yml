@@ -49,7 +49,7 @@ light:
     chipset: WS2812
     pin: GPIO35
     num_leds: 1
-    rgb_order: GRB
+    channel_colors: GRB
     id: led
     name: "Indicator Light"
 
